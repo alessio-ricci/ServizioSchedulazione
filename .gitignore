@@ -1,18 +1,46 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
+## Build and Output directories
 [Bb]in/
+[Oo]bj/
+[Oo]ut/
+msbuild.log
+msbuild.err
+msbuild.wrn
 
-# Other files and folders
-.settings/
+## Visual Studio & VS Code cache/settings
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+## Rider / JetBrains
+.idea/
+*.sln.iml
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+## User-specific / Local Configuration & Secrets
+appsettings*.local.json
+appsettings.Development.json
+*.secrets.json
+.env
+
+## Test results & Coverage
+TestResults/
+[Tt]est[Rr]esult*/
+coverage/
+*.cobertura.xml
+
+## Publish & Package artifacts
+*.nupkg
+*.snupkg
+*.pubxml.user
+publish/
+
+## Crash dumps & Logs
+*.log
+*.dmp
+*.crashdump
