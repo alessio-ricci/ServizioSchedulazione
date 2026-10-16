@@ -15,6 +15,7 @@ namespace ServizioSchedulazione
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var connectionString = _configurazione.GetConnectionString("DefaultConnection");
             var server = _configurazione.GetSection("ServizioSchedulazione:Server").Get<List<SettaggioServer>>() ?? new();
 
             if (server.Count == 0)
@@ -25,7 +26,7 @@ namespace ServizioSchedulazione
 
             //Questo crea più istanze di MonitoraggioServer, tante quante sono i server dichiarati nel config
             var monitor = server.Select(s => new MonitoraggioServer(
-                s, s.NomeLog, s.FiltroPath, _loggerFactory.CreateLogger($"MonitoraggioServer.{s.Nome}")));
+                s, s.NomeLog, s.FiltroPath, _loggerFactory.CreateLogger($"MonitoraggioServer.{s.Nome}"), connectionString));
 
 
             //Questo ci permette di parallelizzare il lavoro.
