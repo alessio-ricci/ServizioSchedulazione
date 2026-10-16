@@ -1,15 +1,17 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Diagnostics.Eventing.Reader;
+using Microsoft.Data.SqlClient;
 
 namespace ServizioSchedulazione
 {
     public class MonitoraggioServer
     {
+        private readonly string _connectionString;
         private readonly SettaggioServer _server;
         private readonly string _nomeLog;
         private readonly string _filtroPath;
@@ -20,12 +22,13 @@ namespace ServizioSchedulazione
         private readonly Dictionary<string, AttivitaInMemoria> _attivitaInMemoria = new();
         private EventLogSession? _sessione;
 
-        public MonitoraggioServer(SettaggioServer server, string nomeLog, string filtroPath, ILogger logger)
+        public MonitoraggioServer(SettaggioServer server, string nomeLog, string filtroPath, ILogger logger, string connectionString)
         {
             _server = server;
             _nomeLog = nomeLog;
             _filtroPath = filtroPath;
             _logger = logger;
+            _connectionString = connectionString;
         }
 
         public async Task EseguiAsync(CancellationToken stoppingToken)
@@ -176,7 +179,7 @@ namespace ServizioSchedulazione
                                     if (taskTerminatoForzatamente != null)
                                     {
                                         _attivitaInMemoria[idTask].DataFine = taskTerminatoForzatamente.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "1"; //1 = errore
+                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
                                         _attivitaInMemoria[idTask].AggiornataSuDB = false;
 
                                         continue;
@@ -185,7 +188,7 @@ namespace ServizioSchedulazione
                                     if (timeout != null)
                                     {
                                         _attivitaInMemoria[idTask].DataFine = timeout.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "1"; //1 = errore
+                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
                                         _attivitaInMemoria[idTask].AggiornataSuDB = false;
 
                                         continue;
@@ -244,7 +247,7 @@ namespace ServizioSchedulazione
                                     };
 
 
-                                    //Con la lettura incrementale, se ci sono eventi associati a questo task con eventi di ActionTerminata o TaskCompletato o TaskTerminatoForzatamente, li devo segnare subito altrimenti al prossimo giro li perdo.
+                                    //Con la lettura incrementale, se ci sono eventi associati a questo task con eventi di ActionTerminata o TaskCompletato o TaskTerminatoForzatamente,
                                     //li devo segnare subito altrimenti al prossimo giro li perdo.
                                     var actionTerminataNuova = gruppo.LastOrDefault(a => a.EventId == "201");
                                     var taskCompletatoNuovo = gruppo.LastOrDefault(a => a.EventId == "102");
@@ -254,7 +257,7 @@ namespace ServizioSchedulazione
                                     if (taskTerminatoForzatamenteNuovo != null)
                                     {
                                         _attivitaInMemoria[idTask].DataFine = taskTerminatoForzatamenteNuovo.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "1"; //1 = errore
+                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
                                         _attivitaInMemoria[idTask].AggiornataSuDB = false;
                                         continue;
                                     }
@@ -262,7 +265,7 @@ namespace ServizioSchedulazione
                                     if (timeoutNuovo != null)
                                     {
                                         _attivitaInMemoria[idTask].DataFine = timeoutNuovo.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "1"; //1 = errore
+                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
                                         _attivitaInMemoria[idTask].AggiornataSuDB = false;
                                         continue;
                                     }
@@ -310,13 +313,23 @@ namespace ServizioSchedulazione
                 //Quello che è importante è che abbiamo la struttura in memoria pronta per fare quello che ci serve
                 
                 //filtra per quelli che devono essere aggiornati.
-
-    
+                if(_attivitaInMemoria.Count > 0)
+                {
+                    try
+                    {
+                        var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
+                        AggiornaDB(daAggiornare);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Errore durante l'aggiornamento su DB.");
+                    }
+                }
 
                 //poi capiamo il delay
-                _logger.LogInformation("\n\nMi fermo per 2 minuti prima di riprendere la lettura degli eventi.\n\n");
-                _logger.LogInformation($"\n\nRiparto alle ore: {DateTime.Now.AddMinutes(2)}\n\n");
-                await Task.Delay(120000, stoppingToken);
+                _logger.LogInformation($"\n\nMi fermo per 30 secondi prima di riprendere la lettura degli eventi.\n\n");
+                _logger.LogInformation($"\n\nRiparto alle ore: {DateTime.Now.AddSeconds(30)}\n\n");
+                await Task.Delay(30000, stoppingToken);
             }
 
 
@@ -327,6 +340,56 @@ namespace ServizioSchedulazione
             return _server.Host is "." or "localhost"
                 ? new EventLogSession()
                 : new EventLogSession(_server.Host);
+        }
+
+        private void AggiornaDB(List<AttivitaInMemoria> daAggiornare)
+        {
+            string query = @"IF EXISTS (SELECT 1 FROM Schedulazioni WHERE Nome = @Nome)
+                            BEGIN
+                                -- Esiste: esegue UPDATE
+                                UPDATE Schedulazioni
+                                SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito
+                                WHERE Nome = @Nome;
+                            END
+                            ELSE
+                            BEGIN
+                                -- Non esiste: esegue INSERT
+                                INSERT INTO Schedulazioni (Nome, EsecuzioneInizio, EsecuzioneFine, SuccessoUltimaEsecuzione, Disabilitata, Ordine, KillMeNow, RunMeNow)
+                                VALUES (@Nome, @Start, @Stop, @Esito, 0, 0, 0, 0);
+                            END";
+
+            using (SqlConnection connection = new SqlConnection(_connectionString))
+            {
+                connection.Open();
+
+                using(SqlCommand command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.Add("@Nome", System.Data.SqlDbType.NVarChar);
+                    command.Parameters.Add("@Start", System.Data.SqlDbType.DateTime);
+                    command.Parameters.Add("@Stop", System.Data.SqlDbType.DateTime);
+                    command.Parameters.Add("@Esito", System.Data.SqlDbType.Bit);
+                    
+                    foreach (var attivita in daAggiornare)
+                    {
+                        command.Parameters["@Nome"].Value = attivita.Nome;
+                        command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
+                        command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
+                        command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
+                        try
+                        {
+                            command.ExecuteNonQuery();
+                            attivita.AggiornataSuDB = true;
+                            _logger.LogInformation($"Aggiornamento DB riuscito per Nome: {attivita.Nome}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, $"Errore durante l'aggiornamento del DB per Nome: {attivita.Nome}");
+                        }
+                    }
+                }
+
+                connection.Close();
+            }
         }
     }
 }
