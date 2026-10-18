@@ -70,3 +70,63 @@ Abbiamo correttamente testato la connessione su un PC remoto
 Per testare la connessione su un pc remoto, da quello client eseguire questo
 wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:INDIRIZZOIP /u:SERVER\UserName /p:PASSWORD /c:5 /rd:true /f:text
 wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:192.168.1.57 /u:Alessio\MonitorUser /p:h4mm0nd19e5 /c:5 /rd:true /f:text
+
+
+**1. Servizio Event Log e Remote Registry non servono, ma serve RPC attivo**
+PowerShell
+```
+Get-Service EventLog, RpcSs, RpcEptMapper | Select Name,Status
+Set-Service EventLog -StartupType Automatic; Start-Service EventLog
+```
+
+2. Ripristina le regole firewall (quelle rimosse):
+```
+Enable-NetFirewallRule -DisplayGroup "Remote Event Log Management"
+```
+
+Se il gruppo non esiste/le regole sono state cancellate, ricreale:
+PowerShell
+```
+New-NetFirewallRule -DisplayName "Remote Event Log (RPC-EPMAP)" -Direction Inbound -Protocol TCP -LocalPort 135 -Action Allow -Profile Any
+New-NetFirewallRule -DisplayName "Remote Event Log (RPC dinamico)" -Direction Inbound -Protocol TCP -LocalPort 49152-65535 -Program "%SystemRoot%\system32\svchost.exe" -Service EventLog -Action Allow -Profile Any
+New-NetFirewallRule -DisplayName "Remote Event Log (NP)" -Direction Inbound -Protocol TCP -LocalPort 445 -Actio
+```
+
+**3. Permessi: l'utente usato dal client deve essere nel gruppo "Event Log Readers":**
+```
+net localgroup "Event Log Readers" SERVER\utente /add
+# oppure dominio: net localgroup "Event Log Readers" DOMINIO\utente /add
+```
+
+**4 Per vedere l'utente abilitati lato client
+```
+Get-LocalGroupMember -SID S-1-5-32-573 Lettori registri eventi
+```
+
+**5. Verifica ascolto:**
+```
+Get-NetFirewallRule -DisplayGroup "Remote Event Log Management" | Select DisplayName,Enabled,Profile
+```
+
+CLIENT
+**1. Test connettività:**
+```
+Test-NetConnection <IP_SERVER> -Port 135
+Test-NetConnection <IP_SERVER> -Port 445
+```
+
+
+## Sul SERVER
+Trova il nome reale del PC e degli utenti:
+```
+hostname
+Get-LocalUser | Select Name,Enabled
+```
+
+Se `hostname` restituisce `SRV01` e l'utente è `mario`, l'account è `SRV01\mario`.
+
+
+Aggiungilo al gruppo senza dipendere dalla lingua (SID del gruppo Event Log Readers):
+```
+Add-LocalGroupMember -SID S-1-5-32-573 -Member "SRV01\mario"
+```
