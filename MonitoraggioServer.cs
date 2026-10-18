@@ -81,7 +81,7 @@ namespace ServizioSchedulazione
 
                                 string? codiceRitorno = Utilita.RecuperaValoreDaXml(doc, "ResultCode");
                                 string? idEvento = Utilita.RecuperaValoreDaXml(doc, "EventID");
-                                string? nomeAction = Utilita.RecuperaValoreDaXml(doc, "ActionName");
+                                string? pathAction = Utilita.RecuperaValoreDaXml(doc, "ActionName");
                                 long recordId = evento.RecordId.HasValue ? (long)evento.RecordId.Value : 0;
 
                                 //segnati l'ultimo record che hai letto.
@@ -100,9 +100,9 @@ namespace ServizioSchedulazione
                                         IdTask = idTask,
                                         EventId = idEvento,
                                         DataCreazione = evento.TimeCreated,
-                                        Nome = nomeTask,
+                                        NomeTask = nomeTask,
                                         CodiceRitorno = codiceRitorno,
-                                        NomeAction = nomeAction
+                                        Action = pathAction
                                     };
 
                                     listaAttivita.Add(attivita);
@@ -226,7 +226,7 @@ namespace ServizioSchedulazione
                                     //Lo Aggiungo ma dovrei prima rimuovere un eventuale doppione con stesso nome ma IdTask differente (SE ESISTE).
                                     foreach (var attivita in _attivitaInMemoria.Values.ToList())
                                     {
-                                        if (attivita.Nome == gruppo.First().Nome)
+                                        if (attivita.Action == actionIniziata.Action)
                                         {
                                             //allora è un attività obsoleta, non mi interessa se è finita o meno, la rimuovo
                                             _attivitaInMemoria.Remove(attivita.IdTask);
@@ -243,7 +243,8 @@ namespace ServizioSchedulazione
                                         CodiceRitorno = null,
                                         DataFine = null,
                                         IdTask = idTask,
-                                        Nome = gruppo.First().Nome
+                                        Action = actionIniziata.Action,
+                                        Nome = actionIniziata.NomeAction,
                                     };
 
 
@@ -299,7 +300,7 @@ namespace ServizioSchedulazione
                     //Devo scrivere un log dettagliato per ogni attività in memoria, così da capire se il processo funziona correttamente.
                     foreach (var attivita in _attivitaInMemoria.Values)
                     {
-                        _logger.LogInformation($"Attività in memoria: Server: {attivita.Server}, IdTask: {attivita.IdTask}, Nome: {attivita.Nome}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
+                        _logger.LogInformation($"Attività in memoria: Server: {attivita.Server}, IdTask: {attivita.IdTask}, Nome: {attivita.Nome}, Action: {attivita.Action}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
                     }
                 }
                 catch (Exception ex)
