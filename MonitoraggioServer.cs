@@ -346,7 +346,7 @@ namespace ServizioSchedulazione
             }
 
             var password = new System.Security.SecureString();
-            foreach (char c in PasswordDaConfigurazione())
+            foreach (char c in _server.Password)
             {
                 password.AppendChar(c);
             }
@@ -354,8 +354,8 @@ namespace ServizioSchedulazione
 
             return new EventLogSession(
                 _server.Host,
-                _server.Host,          // workgroup: dominio = nome del server
-                "UtenteLocaleServer",  // utente locale del server remoto
+                _server.Nome,          // workgroup: dominio = nome del server
+                _server.UserName,  // utente locale del server remoto
                 password,
                 SessionAuthentication.Default);
         }

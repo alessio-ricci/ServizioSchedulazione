@@ -63,3 +63,10 @@ CREATE TABLE [dbo].[Schedulazioni](
 GO
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 
+18-10-2026
+Abbiamo correttamente testato la connessione su un PC remoto
+
+
+Per testare la connessione su un pc remoto, da quello client eseguire questo
+wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:INDIRIZZOIP /u:SERVER\UserName /p:PASSWORD /c:5 /rd:true /f:text
+wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:192.168.1.57 /u:Alessio\MonitorUser /p:h4mm0nd19e5 /c:5 /rd:true /f:text
