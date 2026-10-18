@@ -1,11 +1,13 @@
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Net.Security;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
-using System.Diagnostics.Eventing.Reader;
-using Microsoft.Data.SqlClient;
+
 
 namespace ServizioSchedulazione
 {
@@ -319,7 +321,7 @@ namespace ServizioSchedulazione
                     try
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
-                        AggiornaDB(daAggiornare);
+                        //AggiornaDB(daAggiornare);
                     }
                     catch (Exception ex)
                     {
@@ -338,9 +340,37 @@ namespace ServizioSchedulazione
 
         private EventLogSession CreaSessione()
         {
-            return _server.Host is "." or "localhost"
-                ? new EventLogSession()
-                : new EventLogSession(_server.Host);
+            if (_server.Host is "." or "localhost")
+            {
+                return new EventLogSession();
+            }
+
+            var password = new System.Security.SecureString();
+            foreach (char c in PasswordDaConfigurazione())
+            {
+                password.AppendChar(c);
+            }
+            password.MakeReadOnly();
+
+            return new EventLogSession(
+                _server.Host,
+                _server.Host,          // workgroup: dominio = nome del server
+                "UtenteLocaleServer",  // utente locale del server remoto
+                password,
+                SessionAuthentication.Default);
+        }
+
+        private System.Security.SecureString OttieniPasswordRemota()
+        {
+            // Sostituisci con la password dell'utente locale del server remoto
+            string password = "h4mm0nd19e5";
+            var securePassword = new System.Security.SecureString();
+            foreach (char c in password)
+            {
+                securePassword.AppendChar(c);
+            }
+            securePassword.MakeReadOnly();
+            return securePassword;
         }
 
         private void AggiornaDB(List<AttivitaInMemoria> daAggiornare)
