@@ -495,7 +495,7 @@ namespace ServizioSchedulazione
                     
                     foreach (var attivita in daAggiornare)
                     {
-                        command.Parameters["@Nome"].Value = attivita.NomeTask;
+                        command.Parameters["@Nome"].Value = attivita.NomeTask; //eventualmente fai split con questo char '\' e prendi l'ultimo.
                         command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
                         command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
