@@ -13,8 +13,6 @@ namespace ServizioSchedulazione
 {
     public class MonitoraggioServer
     {
-        private readonly Dictionary<string, DateTime> _taskIgnorati = new();
-        private static readonly TimeSpan _durataIgnorati = TimeSpan.FromHours(48);
         private readonly List<string> _filtriTask;
         private readonly string _connectionString;
         private readonly SettaggioServer _server;
@@ -22,10 +20,11 @@ namespace ServizioSchedulazione
         private readonly string _filtroPath;
         private readonly ILogger _logger;
 
-        //stato PRIVATO di questo server
         private long _ultimoRecordId = 0;
-        private readonly Dictionary<string, AttivitaInMemoria> _attivitaInMemoria = new();
         private EventLogSession? _sessione;
+        private readonly Dictionary<string, AttivitaInMemoria> _attivitaInMemoria = new();
+        private readonly Dictionary<string, DateTime> _taskIgnorati = new();
+        private static readonly TimeSpan _durataIgnorati = TimeSpan.FromHours(48);
 
         public MonitoraggioServer(SettaggioServer server, string nomeLog, ILogger logger, string connectionString)
         {
@@ -450,7 +449,7 @@ namespace ServizioSchedulazione
                 SessionAuthentication.Default);
         }
 
-        private async Task<List<string>> RecuperaFiltriAction()
+        private List<string> RecuperaFiltriAction()
         {
             var filtriAction = new List<string>();
 

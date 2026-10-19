@@ -18,7 +18,7 @@ Attività:
   --Salvare anche il nome della Action. -->FATTO
   --Gestire il fatto che il giro parte guardando le schedulazioni che abbiamo censito, non il contrario. -->FATTO
   --IMPORTANTE: Testare più connessioni alle macchine. -->FATTO
-  --Gestito il caso in cui ci siano più ACTION sullo stesso TASK
+  --Gestito il caso in cui ci siano più ACTION sullo stesso TASK -->FATTO
 
 
 
@@ -128,31 +128,37 @@ Add-LocalGroupMember -SID S-1-5-32-573 -Member "SRV01\mario"
 
 
 
-19-10-2026
-Fabrizio ci dice che la chiave è il nome del Task e che sarà cura loro assicurasi che sul server i task siano chiamati ovviamente in maniera diversa.
-Quindi sul db la chiave sarà il nome del task non ci possiamo sbagliare.
+## 19-10-2026
+## Fabrizio ci dice che la chiave è il nome del Task e che sarà cura loro assicurasi che sul server i task siano chiamati ovviamente in maniera diversa.
+## Quindi sul db la chiave sarà il nome del task non ci possiamo sbagliare.
+## 
+## Ho recuperato i nomi dei task di interesse sul DB
+## Quando recupero i task dal server remoto, se il nome del task è contenuto nella lista dei task recuperata su DB allora lo segno.
+## Faccio l'update su DB e la where condition la faccio come detto sul campo Nome della tabella schedulazioni e metto come condizione ulteriore Disabilitata = 0 perché non deve essere disabilitata.
+## 
+## Mancherebbe:
+## -1 Lanciare eccezione qualora si trovi un task con più action. L'eccezione non deve bloccare l'esecuzione ma deve semplicemente saltare quell'evento.
+## -2 Quando recupero i Task sul DB la where condition qual è? Perché devo identificare solo quelli che mettiamo noi, non quelli che già ci sono.
+## 
+## Possibili problemi nei test:
+## -Il contains è infame. Se per esempio su nome task arriva \\MieiTest\\T1_OK_V3 e su filtri ho T1_OK allora il contains mi ritorna true. Non mi piace moltissimo
+## 
+## 
+## Quando ci sono più action sul task, non è così semplice andarlo a tracciare.
+## Perché lui non ha due nodi di Action
+## 
+## 
+## Dovrei fare cosi:
+## Vedere se esistono piu idEvento 200 per lo stesso IDTask.
+## 
+## Dovrei avere risolto correttamente. Testiamo.
+## Sembra proprio che ho risolto.
+## 
+## Manca solo capire i task su DB quando li recupero all'inizio, la where condition qual è.
+## NB: Il metodo di interazione con il DB è stato reso async
 
-Ho recuperato i nomi dei task di interesse sul DB
-Quando recupero i task dal server remoto, se il nome del task è contenuto nella lista dei task recuperata su DB allora lo segno.
-Faccio l'update su DB e la where condition la faccio come detto sul campo Nome della tabella schedulazioni e metto come condizione ulteriore Disabilitata = 0 perché non deve essere disabilitata.
 
-Mancherebbe:
--1 Lanciare eccezione qualora si trovi un task con più action. L'eccezione non deve bloccare l'esecuzione ma deve semplicemente saltare quell'evento.
--2 Quando recupero i Task sul DB la where condition qual è? Perché devo identificare solo quelli che mettiamo noi, non quelli che già ci sono.
-
-Possibili problemi nei test:
--Il contains è infame. Se per esempio su nome task arriva \\MieiTest\\T1_OK_V3 e su filtri ho T1_OK allora il contains mi ritorna true. Non mi piace moltissimo
-
-
-Quando ci sono più action sul task, non è così semplice andarlo a tracciare.
-Perché lui non ha due nodi di Action
-
-
-Dovrei fare cosi:
-Vedere se esistono piu idEvento 200 per lo stesso IDTask.
-
-Dovrei avere risolto correttamente. Testiamo.
-Sembra proprio che ho risolto.
-
-Manca solo capire i task su DB quando li recupero all'inizio, la where condition qual è.
-NB: Il metodo di interazione con il DB è stato reso async
+--Monitoraggio su DB
+SELECT * FROM [Schedulazioni].[dbo].[Schedulazioni]
+--update Schedulazioni set Disabilitata = 0 where Nome = '\MieiTest\Task3'
+SELECT NOME, DATEDIFF(MILLISECOND, EsecuzioneInizio, EsecuzioneFine) as TempoEsecuzione from Schedulazioni
