@@ -13,6 +13,9 @@ namespace ServizioSchedulazione
 {
     public class MonitoraggioServer
     {
+        private readonly Dictionary<string, DateTime> _taskIgnorati = new();
+        private static readonly TimeSpan _durataIgnorati = TimeSpan.FromHours(48);
+        private readonly List<string> _filtriTask;
         private readonly string _connectionString;
         private readonly SettaggioServer _server;
         private readonly string _nomeLog;
@@ -24,13 +27,14 @@ namespace ServizioSchedulazione
         private readonly Dictionary<string, AttivitaInMemoria> _attivitaInMemoria = new();
         private EventLogSession? _sessione;
 
-        public MonitoraggioServer(SettaggioServer server, string nomeLog, string filtroPath, ILogger logger, string connectionString)
+        public MonitoraggioServer(SettaggioServer server, string nomeLog, ILogger logger, string connectionString)
         {
             _server = server;
             _nomeLog = nomeLog;
-            _filtroPath = filtroPath;
             _logger = logger;
             _connectionString = connectionString;
+
+            _filtriTask = RecuperaFiltriAction();
         }
 
         public async Task EseguiAsync(CancellationToken stoppingToken)
@@ -45,14 +49,38 @@ namespace ServizioSchedulazione
 
             while (!stoppingToken.IsCancellationRequested)
             {
-
+                 
                 listaAttivita.Clear();
+
+                //rimuovo dai task ignorati quelli scaduti
+                if (_taskIgnorati.Count > 0)
+                {
+                    DateTime limite = DateTime.Now - _durataIgnorati;
+                    var scaduti = _taskIgnorati.Where(t => t.Value < limite).Select(t => t.Key).ToList();
+
+                    foreach (var id in scaduti)
+                    {
+                        _taskIgnorati.Remove(id);
+                    }
+
+                    if (scaduti.Count > 0)
+                    {
+                        _logger.LogInformation($"Rimossi {scaduti.Count} task dall'elenco degli ignorati (scaduti).");
+                    }
+                }
+
+
                 long maxRecordIdLetto = _ultimoRecordId;
                 bool letturaOk = false;
+                string? nomeTask = null;
+                string? idTask = null;
+                string? idEvento = null;
+                string? pathAction = null;
+                string? codiceRitorno = null;
 
                 try
                 {
-                    //Allora cosi facendo sto filtrando per ultimo recordId rimasto in memoria e per la data di oggi
+                    //Filtro per ultimo recordId rimasto in memoria e per la data di oggi
                     //Non mi interessa sapere quello che è successo ieri, mi serve sapere cosa accade da dopo adesso.
                     //Una volta che abbiamo ultimo recordId ce ne freghiamo della data, andiamo per RecordID
                     string xPath = Utilita.CostruisciXPath(_ultimoRecordId, dataInizio);
@@ -76,14 +104,24 @@ namespace ServizioSchedulazione
                                 XmlDocument doc = new XmlDocument();
                                 doc.LoadXml(xml);
 
-                                string? nomeTask = Utilita.RecuperaValoreDaXml(doc, "TaskName");
+                                //mettiamo in un try catch e recupera valore deve sollevare un eccezione se trova ActionName con più di un nodo.
+                                try
+                                {
+                                    nomeTask = Utilita.RecuperaValoreDaXml(doc, "TaskName");
 
-                                //Ne devo mettere di più perché a seconda del tipo di evento cambia il nome dell'elemento che contiene l'id del task...
-                                string? idTask = Utilita.RecuperaValoreDaXml(doc, "InstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "TaskInstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "QueuedTaskInstanceId");
+                                    //Ne devo mettere di più perché a seconda del tipo di evento cambia il nome dell'elemento che contiene l'id del task...
+                                    idTask = Utilita.RecuperaValoreDaXml(doc, "InstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "TaskInstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "QueuedTaskInstanceId");
 
-                                string? codiceRitorno = Utilita.RecuperaValoreDaXml(doc, "ResultCode");
-                                string? idEvento = Utilita.RecuperaValoreDaXml(doc, "EventID");
-                                string? pathAction = Utilita.RecuperaValoreDaXml(doc, "ActionName");
+                                    codiceRitorno = Utilita.RecuperaValoreDaXml(doc, "ResultCode");
+                                    idEvento = Utilita.RecuperaValoreDaXml(doc, "EventID");
+                                    pathAction = Utilita.RecuperaValoreDaXml(doc, "ActionName");
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, $"Errore lettura nodi: {ex.Message}");
+                                    continue;
+                                }
+                                
                                 long recordId = evento.RecordId.HasValue ? (long)evento.RecordId.Value : 0;
 
                                 //segnati l'ultimo record che hai letto.
@@ -92,10 +130,9 @@ namespace ServizioSchedulazione
                                     maxRecordIdLetto = recordId;
                                 }
 
-                                //solo se nomeTask è diverso da null e contiente il filtroPath
-                                if (!string.IsNullOrEmpty(nomeTask) && nomeTask.Contains(_filtroPath) && idTask != null)
+                                //solo se nomeTask è diverso da null ed è contenuto nei filtri iniziali
+                                if (!string.IsNullOrEmpty(nomeTask) && _filtriTask.Any(filtro => nomeTask.Contains(filtro.Trim(), StringComparison.OrdinalIgnoreCase)) && idTask != null)
                                 {
-
                                     Attivita attivita = new Attivita
                                     {
                                         RecordId = recordId,
@@ -111,7 +148,7 @@ namespace ServizioSchedulazione
                                 }
                                 else
                                 {
-                                    continue; //salta l'evento se non contiene il filtroPath
+                                    continue; 
                                 }
                             }
                         }
@@ -150,6 +187,57 @@ namespace ServizioSchedulazione
                     //      Il flag viene risettato a false ogni volta che il processo legge un nuovo evento e aggiorna l'oggetto in memoria.
 
 
+                    //Da qui rimuoviamo quelli che hanno più action e lanciamo eccezione:
+                    //Purtroppo quelli che hanno più action sono un problema perché non hanno più nodi nell'XML e quindi non possiamo capire quante ce ne siano
+                    //La cosa che accade a livello di windows scheduler è che vengono creati più eventi con 200.
+                    if(listaAttivita.Count > 0)
+                    {
+                        try
+                        {
+                            //1) scarto subito gli eventi dei task già marcati come "da ignorare" nei cicli precedenti
+                            listaAttivita.RemoveAll(a => _taskIgnorati.ContainsKey(a.IdTask));
+
+                            //2) cerco nuovi task con più action:
+                            //   - più di un 200 nello stesso ciclo, oppure
+                            //   - un 200 per un task già in memoria (il primo 200 è stato letto in un ciclo precedente)
+                            var nuoviMultiAction = listaAttivita
+                                .Where(a => a.EventId == "200")
+                                .GroupBy(a => a.IdTask)
+                                .Where(g => g.Count() > 1 || _attivitaInMemoria.ContainsKey(g.Key))
+                                .Select(g => new { IdTask = g.Key, NomeTask = g.First().NomeTask })
+                                .ToList();
+
+                            if (nuoviMultiAction.Count > 0)
+                            {
+                                //3) pulizia
+                                foreach (var task in nuoviMultiAction)
+                                {
+                                    _taskIgnorati[task.IdTask] = DateTime.Now;
+
+                                    //se il primo 200 era già in memoria lo tolgo, così non viene più aggiornato su DB
+                                    //_attivitaInMemoria.Remove(task.IdTask);
+
+                                    //Non voglio rimuoverlo più lo voglio aggiornare su DB mettendo tutto null
+                                    _attivitaInMemoria[task.IdTask].DataInizio = null;
+                                    _attivitaInMemoria[task.IdTask].DataFine = null;
+                                    _attivitaInMemoria[task.IdTask].CodiceRitorno = null;
+                                    _attivitaInMemoria[task.IdTask].AggiornataSuDB = false;
+                                }
+
+                                //tolgo dalla lista tutti gli eventi (200, 201, 102, ...) di questi task
+                                listaAttivita.RemoveAll(a => _taskIgnorati.ContainsKey(a.IdTask));
+
+                                //4) segnalazione: l'eccezione viene catturata qui sotto e finisce solo nel log come warning
+                                string dettaglio = string.Join(" | ", nuoviMultiAction.Select(t => $"NomeTask: {t.NomeTask}, IdTask: {t.IdTask}"));
+                                throw new Exception($"Attenzione: trovati task con più action (EventId=200 multiplo per lo stesso IdTask). Task ignorati: {dettaglio}");
+                            }
+
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, $"Attenzione: {ex.ToString()}");
+                        }
+                    }
 
                     if (listaAttivita.Count > 0)
                     {
@@ -158,12 +246,12 @@ namespace ServizioSchedulazione
 
                         foreach (var gruppo in attivitaRaggruppate)
                         {
-                            string idTask = gruppo.Key;
+                            string idTaskTrovato = gruppo.Key;
 
-                            if (_attivitaInMemoria.ContainsKey(idTask))
+                            if (_attivitaInMemoria.ContainsKey(idTaskTrovato))
                             {
                                 //Se esiste, controlla se terminato o meno
-                                if (!_attivitaInMemoria[idTask].Terminata)
+                                if (!_attivitaInMemoria[idTaskTrovato].Terminata)
                                 {
                                     //Se non è terminato, controlliamo se nel gruppo esiste un idEvento coerente che mi dica che il task è terminato.
                                     //Gli idEvento buoni che devo controllare su Windows Scheduler sono:
@@ -180,32 +268,32 @@ namespace ServizioSchedulazione
                                     //In questo caso, task termianto forzatamente e quindi dobbiamo segnare attività terminata errore e fine
                                     if (taskTerminatoForzatamente != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = taskTerminatoForzatamente.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = taskTerminatoForzatamente.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = "0"; //0 = errore
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
 
                                         continue;
                                     }
 
                                     if (timeout != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = timeout.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = timeout.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = "0"; //0 = errore
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
 
                                         continue;
                                     }
 
                                     if (actionTerminata != null)
                                     {
-                                        _attivitaInMemoria[idTask].CodiceRitorno = actionTerminata.CodiceRitorno == "0" ? "1" : "0";
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = actionTerminata.CodiceRitorno == "0" ? "1" : "0";
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                     }
 
                                     if (taskCompletato != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = taskCompletato.DataCreazione;
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = taskCompletato.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                     }
                                 }
                                 else
@@ -228,7 +316,7 @@ namespace ServizioSchedulazione
                                     //Lo Aggiungo ma dovrei prima rimuovere un eventuale doppione con stesso nome ma IdTask differente (SE ESISTE).
                                     foreach (var attivita in _attivitaInMemoria.Values.ToList())
                                     {
-                                        if (attivita.Action == actionIniziata.Action)
+                                        if (attivita.NomeTask == actionIniziata.NomeTask)
                                         {
                                             //allora è un attività obsoleta, non mi interessa se è finita o meno, la rimuovo
                                             _attivitaInMemoria.Remove(attivita.IdTask);
@@ -237,16 +325,17 @@ namespace ServizioSchedulazione
 
                                     //ok mi sono assicurato che se esiste qualcosa con lo stesso nome ma idTask differente è stato rimosso
                                     //ora aggiungo tranquilamente l'elemento.
-                                    _attivitaInMemoria[idTask] = new AttivitaInMemoria()
+                                    _attivitaInMemoria[idTaskTrovato] = new AttivitaInMemoria()
                                     {
                                         Server = _server.Nome,
                                         DataInizio = actionIniziata.DataCreazione,
                                         AggiornataSuDB = false,
                                         CodiceRitorno = null,
                                         DataFine = null,
-                                        IdTask = idTask,
+                                        IdTask = idTaskTrovato,
                                         Action = actionIniziata.Action,
-                                        Nome = actionIniziata.NomeAction,
+                                        NomeAction = actionIniziata.NomeAction,
+                                        NomeTask = actionIniziata.NomeTask,
                                     };
 
 
@@ -259,30 +348,30 @@ namespace ServizioSchedulazione
 
                                     if (taskTerminatoForzatamenteNuovo != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = taskTerminatoForzatamenteNuovo.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = taskTerminatoForzatamenteNuovo.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = "0"; //0 = errore
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                         continue;
                                     }
 
                                     if (timeoutNuovo != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = timeoutNuovo.DataCreazione;
-                                        _attivitaInMemoria[idTask].CodiceRitorno = "0"; //0 = errore
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = timeoutNuovo.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = "0"; //0 = errore
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                         continue;
                                     }
 
                                     if (actionTerminataNuova != null)
                                     {
-                                        _attivitaInMemoria[idTask].CodiceRitorno = actionTerminataNuova.CodiceRitorno == "0" ? "1" : "0";
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].CodiceRitorno = actionTerminataNuova.CodiceRitorno == "0" ? "1" : "0";
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                     }
 
                                     if (taskCompletatoNuovo != null)
                                     {
-                                        _attivitaInMemoria[idTask].DataFine = taskCompletatoNuovo.DataCreazione;
-                                        _attivitaInMemoria[idTask].AggiornataSuDB = false;
+                                        _attivitaInMemoria[idTaskTrovato].DataFine = taskCompletatoNuovo.DataCreazione;
+                                        _attivitaInMemoria[idTaskTrovato].AggiornataSuDB = false;
                                     }
 
                                 }
@@ -302,7 +391,7 @@ namespace ServizioSchedulazione
                     //Devo scrivere un log dettagliato per ogni attività in memoria, così da capire se il processo funziona correttamente.
                     foreach (var attivita in _attivitaInMemoria.Values)
                     {
-                        _logger.LogInformation($"Attività in memoria: Server: {attivita.Server}, IdTask: {attivita.IdTask}, Nome: {attivita.Nome}, Action: {attivita.Action}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
+                        _logger.LogInformation($"Attività in memoria: Server: {attivita.Server}, IdTask: {attivita.IdTask}, NomeTask: {attivita.NomeTask}, NomeAction: {attivita.NomeAction}, Action: {attivita.Action}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
                     }
                 }
                 catch (Exception ex)
@@ -321,7 +410,7 @@ namespace ServizioSchedulazione
                     try
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
-                        //AggiornaDB(daAggiornare);
+                        AggiornaDB(daAggiornare);
                     }
                     catch (Exception ex)
                     {
@@ -330,9 +419,9 @@ namespace ServizioSchedulazione
                 }
 
                 //poi capiamo il delay
-                _logger.LogInformation($"\n\nMi fermo per 30 secondi prima di riprendere la lettura degli eventi.\n\n");
-                _logger.LogInformation($"\n\nRiparto alle ore: {DateTime.Now.AddSeconds(30)}\n\n");
-                await Task.Delay(30000, stoppingToken);
+                _logger.LogInformation($"\n\nMi fermo per 5 secondi prima di riprendere la lettura degli eventi.\n\n");
+                _logger.LogInformation($"\n\nRiparto alle ore: {DateTime.Now.AddSeconds(5)}\n\n");
+                await Task.Delay(5000, stoppingToken);
             }
 
 
@@ -360,34 +449,38 @@ namespace ServizioSchedulazione
                 SessionAuthentication.Default);
         }
 
-        private System.Security.SecureString OttieniPasswordRemota()
+        private List<string> RecuperaFiltriAction()
         {
-            // Sostituisci con la password dell'utente locale del server remoto
-            string password = "h4mm0nd19e5";
-            var securePassword = new System.Security.SecureString();
-            foreach (char c in password)
+            var filtriAction = new List<string>();
+
+            string query = @"select Nome from Schedulazioni where Nome is not null and Disabilitata = 0";
+
+            using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                securePassword.AppendChar(c);
+                connection.Open();
+                using (SqlCommand command = new SqlCommand(query, connection))
+                {
+                    
+                    using (SqlDataReader reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            //potremmo avere la necessità di fare manipolazione sulla stringa
+                            string filtroAction = reader.GetString(0);
+                            filtriAction.Add(filtroAction);
+                        }
+                    }
+                }
+                connection.Close();
             }
-            securePassword.MakeReadOnly();
-            return securePassword;
+
+            return filtriAction;
+
         }
 
         private void AggiornaDB(List<AttivitaInMemoria> daAggiornare)
         {
-            string query = @"IF EXISTS (SELECT 1 FROM Schedulazioni WHERE Nome = @Nome)
-                            BEGIN
-                                -- Esiste: esegue UPDATE
-                                UPDATE Schedulazioni
-                                SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito
-                                WHERE Nome = @Nome;
-                            END
-                            ELSE
-                            BEGIN
-                                -- Non esiste: esegue INSERT
-                                INSERT INTO Schedulazioni (Nome, EsecuzioneInizio, EsecuzioneFine, SuccessoUltimaEsecuzione, Disabilitata, Ordine, KillMeNow, RunMeNow)
-                                VALUES (@Nome, @Start, @Stop, @Esito, 0, 0, 0, 0);
-                            END";
+            string query = @"UPDATE Schedulazioni SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito WHERE Nome = @Nome AND Disabilitata = 0";
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
@@ -402,7 +495,7 @@ namespace ServizioSchedulazione
                     
                     foreach (var attivita in daAggiornare)
                     {
-                        command.Parameters["@Nome"].Value = attivita.Nome;
+                        command.Parameters["@Nome"].Value = attivita.NomeTask;
                         command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
                         command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
@@ -410,11 +503,11 @@ namespace ServizioSchedulazione
                         {
                             command.ExecuteNonQuery();
                             attivita.AggiornataSuDB = true;
-                            _logger.LogInformation($"Aggiornamento DB riuscito per Nome: {attivita.Nome}");
+                            _logger.LogInformation($"Aggiornamento DB riuscito per NomeTask: {attivita.NomeTask}");
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, $"Errore durante l'aggiornamento del DB per Nome: {attivita.Nome}");
+                            _logger.LogError(ex, $"Errore durante l'aggiornamento del DB per NomeTask: {attivita.NomeTask}");
                         }
                     }
                 }
