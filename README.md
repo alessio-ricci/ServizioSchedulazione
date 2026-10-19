@@ -10,22 +10,17 @@ Requisiti:
     NB: Se un Task ha più Action sollevare eccezione.
 
 Attività:
-  -Leggere i task schedulati dal WindowsScheduler (fatto)
-  -Leggere i task schedulati in maniera incrementale (fatto)
-  -Creare una struttura di Attività registrate in memoria che tenga conto di cosa deve essere aggiornato su DB e cosa no in base a quello che ha letto.
-  -Creare la parte di comunicazione con il DB con la query di update (fatto)
-  -Impostare l'esecuzione simultanea di lettura e aggiornamento su più server (fatto)
-  -Salvare anche il nome della Action.
-  -Salvare quello sul DB al posto del nome Task.
-  -Creare dei task che lanciano action diverse dalla classica "powershell.exe".
-  -Gestire action con lo stesso nome in esecuzione su due server differenti.
-  -Gestire il fatto che il giro parte guardando le schedulazioni che abbiamo censito, non il contrario.
-  -IMPORTANTE: Testare più connessioni alle macchine.
+  --Leggere i task schedulati dal WindowsScheduler -->FATTO
+  --Leggere i task schedulati in maniera incrementale -->FATTO
+  --Creare una struttura di Attività registrate in memoria che tenga conto di cosa deve essere aggiornato su DB e cosa no in base a quello che ha letto. -->FATTO
+  --Creare la parte di comunicazione con il DB con la query di update -->FATTO 
+  --Impostare l'esecuzione simultanea di lettura e aggiornamento su più server -->FATTO
+  --Salvare anche il nome della Action. -->FATTO
+  --Gestire il fatto che il giro parte guardando le schedulazioni che abbiamo censito, non il contrario. -->FATTO
+  --IMPORTANTE: Testare più connessioni alle macchine. -->FATTO
+  --Gestito il caso in cui ci siano più ACTION sullo stesso TASK
 
-16-10-2026
-Domande:
-  -Ci interessa salvare il nome della Action o del Task? Al 100% quello della Action
-  -Se esistono più action uguali ma in running su server diversi come le distinguo sul DB per dire quale è partito e quale no?
+
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 SCRIPT PER CREARE LA TABELLA DEL DB --> DB Schedulazioni
@@ -159,4 +154,5 @@ Vedere se esistono piu idEvento 200 per lo stesso IDTask.
 Dovrei avere risolto correttamente. Testiamo.
 Sembra proprio che ho risolto.
 
-Manca solo capire i task su DB quando li recupero all'inizio, la where condition qual è
+Manca solo capire i task su DB quando li recupero all'inizio, la where condition qual è.
+NB: Il metodo di interazione con il DB è stato reso async

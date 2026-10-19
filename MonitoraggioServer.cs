@@ -227,7 +227,6 @@ namespace ServizioSchedulazione
                                 //tolgo dalla lista tutti gli eventi (200, 201, 102, ...) di questi task
                                 listaAttivita.RemoveAll(a => _taskIgnorati.ContainsKey(a.IdTask));
 
-                                //4) segnalazione: l'eccezione viene catturata qui sotto e finisce solo nel log come warning
                                 string dettaglio = string.Join(" | ", nuoviMultiAction.Select(t => $"NomeTask: {t.NomeTask}, IdTask: {t.IdTask}"));
                                 throw new Exception($"Attenzione: trovati task con più action (EventId=200 multiplo per lo stesso IdTask). Task ignorati: {dettaglio}");
                             }
@@ -298,7 +297,7 @@ namespace ServizioSchedulazione
                                 }
                                 else
                                 {
-                                    //Se è terminato non fai niente per adesso, siamo in presenza di un doppione che non va gestito.
+                                    //Se è terminato non fai niente per adesso, siamo in presenza di un doppione che viene gestito nell'else
                                     //Lo teniamo fuori dai giochi.
                                     continue;
                                 }
@@ -314,17 +313,19 @@ namespace ServizioSchedulazione
                                     //allora è sicuro che per questo gruppo.Key il task è iniziato quindi lo aggiungo.
     
                                     //Lo Aggiungo ma dovrei prima rimuovere un eventuale doppione con stesso nome ma IdTask differente (SE ESISTE).
+                                    //Mi accerto che non ci sia un qualcosa con lo stesso nome già segnato dentro _attivitaInMemoria altrimenti vado a fare doppione
                                     foreach (var attivita in _attivitaInMemoria.Values.ToList())
                                     {
                                         if (attivita.NomeTask == actionIniziata.NomeTask)
                                         {
-                                            //allora è un attività obsoleta, non mi interessa se è finita o meno, la rimuovo
+                                            //allora è un attività obsoleta, non mi interessa se è finita o meno, la rimuovo.
+                                            //La sostituirò con la nuova
                                             _attivitaInMemoria.Remove(attivita.IdTask);
                                         }
                                     }
 
                                     //ok mi sono assicurato che se esiste qualcosa con lo stesso nome ma idTask differente è stato rimosso
-                                    //ora aggiungo tranquilamente l'elemento.
+                                    //ora aggiungo tranquillamente l'elemento.
                                     _attivitaInMemoria[idTaskTrovato] = new AttivitaInMemoria()
                                     {
                                         Server = _server.Nome,
@@ -410,7 +411,7 @@ namespace ServizioSchedulazione
                     try
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
-                        AggiornaDB(daAggiornare);
+                        await AggiornaDB(daAggiornare);
                     }
                     catch (Exception ex)
                     {
@@ -449,7 +450,7 @@ namespace ServizioSchedulazione
                 SessionAuthentication.Default);
         }
 
-        private List<string> RecuperaFiltriAction()
+        private async Task<List<string>> RecuperaFiltriAction()
         {
             var filtriAction = new List<string>();
 
@@ -478,13 +479,13 @@ namespace ServizioSchedulazione
 
         }
 
-        private void AggiornaDB(List<AttivitaInMemoria> daAggiornare)
+        private async Task AggiornaDB(List<AttivitaInMemoria> daAggiornare)
         {
             string query = @"UPDATE Schedulazioni SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito WHERE Nome = @Nome AND Disabilitata = 0";
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync();
 
                 using(SqlCommand command = new SqlCommand(query, connection))
                 {
@@ -501,7 +502,7 @@ namespace ServizioSchedulazione
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
                         try
                         {
-                            command.ExecuteNonQuery();
+                            await command.ExecuteNonQueryAsync();
                             attivita.AggiornataSuDB = true;
                             _logger.LogInformation($"Aggiornamento DB riuscito per NomeTask: {attivita.NomeTask}");
                         }
@@ -511,8 +512,6 @@ namespace ServizioSchedulazione
                         }
                     }
                 }
-
-                connection.Close();
             }
         }
     }
