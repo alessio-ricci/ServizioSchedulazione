@@ -64,7 +64,7 @@ Abbiamo correttamente testato la connessione su un PC remoto
 
 Per testare la connessione su un pc remoto, da quello client eseguire questo
 wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:INDIRIZZOIP /u:SERVER\UserName /p:PASSWORD /c:5 /rd:true /f:text
-wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:192.168.1.57 /u:Alessio\MonitorUser /p:h4mm0nd19e5 /c:5 /rd:true /f:text
+wevtutil qe Microsoft-Windows-TaskScheduler/Operational /r:192.168.1.57 /u:Alessio\MonitorUser /p: /c:5 /rd:true /f:text
 
 
 **1. Servizio Event Log e Remote Registry non servono, ma serve RPC attivo**
@@ -162,3 +162,36 @@ Add-LocalGroupMember -SID S-1-5-32-573 -Member "SRV01\mario"
 SELECT * FROM [Schedulazioni].[dbo].[Schedulazioni]
 --update Schedulazioni set Disabilitata = 0 where Nome = '\MieiTest\Task3'
 SELECT NOME, DATEDIFF(MILLISECOND, EsecuzioneInizio, EsecuzioneFine) as TempoEsecuzione from Schedulazioni
+
+
+-20-10-2026
+Oggi proviamo la connessione alla macchina remota.
+
+Ho bisogno di 
+Username abilitato al gruppo Event Log Readers
+Hostname della macchina remota
+Password dell'utente che mi hanno abilitato al gruppo Event Log Readers
+
+Username: 
+
+
+
+Per usare il servizio.
+Da powershell lanciare:
+```
+	#crea tutto il necessario per il servizio
+	dotnet publish -c Release -o C:\Servizi\ServizioSchedulazione 
+
+	#Crea il servizio su windows
+	sc.exe create "ServizioSchedulazione" binPath= "C:\Services\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto
+
+	#Avvia il servizio
+	sc.exe start "ServizioSchedulazione"
+
+
+Gestione dei Log
+Se vuoi verificare che il servizio stia girando correttamente e leggendo il file di configurazione:
+	Apri Gestione Eventi (Event Viewer) su Windows.
+	Vai su Registri di Windows -> Applicazione (Windows Logs -> Application).
+	Troverai i log generati dal tuo servizio (con la sorgente pari al nome del servizio).
+```
