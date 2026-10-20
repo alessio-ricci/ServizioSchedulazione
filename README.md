@@ -196,3 +196,26 @@ Se vuoi verificare che il servizio stia girando correttamente e leggendo il file
 	Troverai i log generati dal tuo servizio (con la sorgente pari al nome del servizio).
 ```
 
+
+```
+sc.exe create "ServizioSchedulazione" binPath= "C:\Servizi\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto
+sc failure "ServizioSchedulazione" reset= 86400 actions= restart/60000/restart/60000/run/60000
+	-reset= 86400: Dopo 24 ore (86400 secondi) senza crash, il contatore dei tentativi si azzera.
+	-actions= restart/60000/...: Indica la sequenza delle azioni. In questo caso:
+	-Al primo crash, riavvia il servizio dopo 60 secondi (60000 millisecondi).
+	-Al secondo crash, riavvia il servizio dopo altri 60 secondi.
+	-Dal terzo crash in poi, puoi decidere se continuare a riavviare o eseguire qualcos'altro.
+
+
+#configurazione più semplice
+sc failure "ServizioSchedulazione" reset= 0 actions= restart/30000
+
+#avviare il servizio
+sc start "ServizioSchedulazione"
+
+#Stoppare il servizio
+sc stop "ServizioSchedulazione"
+
+#Eliminare il servizio
+sc delete "ServizioSchedulazione"
+```
