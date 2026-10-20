@@ -195,3 +195,4 @@ Se vuoi verificare che il servizio stia girando correttamente e leggendo il file
 	Vai su Registri di Windows -> Applicazione (Windows Logs -> Application).
 	Troverai i log generati dal tuo servizio (con la sorgente pari al nome del servizio).
 ```
+

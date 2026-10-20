@@ -106,7 +106,7 @@ namespace ServizioSchedulazione
                                 //mettiamo in un try catch e recupera valore deve sollevare un eccezione se trova ActionName con più di un nodo.
                                 try
                                 {
-                                    nomeTask = Utilita.RecuperaValoreDaXml(doc, "TaskName");
+                                    nomeTask = Utilita.RecuperaValoreDaXml(doc, "TaskName").Trim();
 
                                     //Ne devo mettere di più perché a seconda del tipo di evento cambia il nome dell'elemento che contiene l'id del task...
                                     idTask = Utilita.RecuperaValoreDaXml(doc, "InstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "TaskInstanceId") ?? Utilita.RecuperaValoreDaXml(doc, "QueuedTaskInstanceId");
@@ -130,7 +130,7 @@ namespace ServizioSchedulazione
                                 }
 
                                 //solo se nomeTask è diverso da null ed è contenuto nei filtri iniziali
-                                if (!string.IsNullOrEmpty(nomeTask) && _filtriTask.Any(filtro => nomeTask.Contains(filtro.Trim(), StringComparison.OrdinalIgnoreCase)) && idTask != null)
+                                if (!string.IsNullOrEmpty(nomeTask) && _filtriTask.Any(filtro => nomeTask.Split('\\').Last().Equals(filtro.Trim(), StringComparison.OrdinalIgnoreCase)) && idTask != null)
                                 {
                                     Attivita attivita = new Attivita
                                     {
@@ -158,7 +158,7 @@ namespace ServizioSchedulazione
                 {
                     _sessione?.Dispose();
                     _sessione = null;
-                    _logger.LogError(ex, "Errore durante la lettura degli eventi.");
+                    _logger.LogError(ex.ToString(), "Errore durante la lettura degli eventi.");
                 }
                 #endregion
 
@@ -443,7 +443,7 @@ namespace ServizioSchedulazione
 
             return new EventLogSession(
                 _server.Host,
-                _server.Nome,          // workgroup: dominio = nome del server
+                _server.Nome,      // workgroup: dominio = nome del server
                 _server.UserName,  // utente locale del server remoto
                 password,
                 SessionAuthentication.Default);
@@ -495,7 +495,7 @@ namespace ServizioSchedulazione
                     
                     foreach (var attivita in daAggiornare)
                     {
-                        command.Parameters["@Nome"].Value = attivita.NomeTask; //eventualmente fai split con questo char '\' e prendi l'ultimo.
+                        command.Parameters["@Nome"].Value = attivita.NomeTask.Split('\\').Last();
                         command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
                         command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
