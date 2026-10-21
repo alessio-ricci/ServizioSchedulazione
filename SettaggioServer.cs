@@ -13,6 +13,7 @@ namespace ServizioSchedulazione
         public string Host { get; set; } = ".";
         public string NomeLog { get; set; } = "Microsoft-Windows-TaskScheduler/Operational";
         //public string FiltroPath { get; set; } = "\\MieiTest\\";
+        public string NomeServer { get; set; } = "";    
         public string Password { get; set; } = "";
     }
 }

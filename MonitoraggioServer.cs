@@ -227,7 +227,7 @@ namespace ServizioSchedulazione
                                 listaAttivita.RemoveAll(a => _taskIgnorati.ContainsKey(a.IdTask));
 
                                 string dettaglio = string.Join(" | ", nuoviMultiAction.Select(t => $"NomeTask: {t.NomeTask}, IdTask: {t.IdTask}"));
-                                throw new Exception($"Attenzione: trovati task con più action (EventId=200 multiplo per lo stesso IdTask). Task ignorati: {dettaglio}");
+                                throw new Exception($"Trovati task con più action (EventId=200 multiplo per lo stesso IdTask). Task ignorati: {dettaglio}");
                             }
 
                         }
@@ -410,7 +410,7 @@ namespace ServizioSchedulazione
                     try
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
-                        await AggiornaDB(daAggiornare);
+                        await AggiornaDB(daAggiornare, _server.Host + " - " + _server.NomeServer);
                     }
                     catch (Exception ex)
                     {
@@ -453,7 +453,7 @@ namespace ServizioSchedulazione
         {
             var filtriAction = new List<string>();
 
-            string query = @"select Nome from Schedulazioni where Nome is not null and Disabilitata = 0";
+            string query = @"select Descrizione from Schedulazioni where Disabilitata = 0 and CategoriaAttivita = 'Schedulazione Windows'";
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
@@ -478,9 +478,9 @@ namespace ServizioSchedulazione
 
         }
 
-        private async Task AggiornaDB(List<AttivitaInMemoria> daAggiornare)
+        private async Task AggiornaDB(List<AttivitaInMemoria> daAggiornare, string NomeServer)
         {
-            string query = @"UPDATE Schedulazioni SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito WHERE Nome = @Nome AND Disabilitata = 0";
+            string query = @"UPDATE Schedulazioni SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito, Nome = @NomeServer WHERE Descrizione = @Descrizione AND Disabilitata = 0";
 
             using (SqlConnection connection = new SqlConnection(_connectionString))
             {
@@ -488,14 +488,16 @@ namespace ServizioSchedulazione
 
                 using(SqlCommand command = new SqlCommand(query, connection))
                 {
-                    command.Parameters.Add("@Nome", System.Data.SqlDbType.NVarChar);
+                    command.Parameters.Add("@Descrizione", System.Data.SqlDbType.NVarChar);
+                    command.Parameters.Add("@NomeServer", System.Data.SqlDbType.NVarChar);
                     command.Parameters.Add("@Start", System.Data.SqlDbType.DateTime);
                     command.Parameters.Add("@Stop", System.Data.SqlDbType.DateTime);
                     command.Parameters.Add("@Esito", System.Data.SqlDbType.Bit);
                     
                     foreach (var attivita in daAggiornare)
                     {
-                        command.Parameters["@Nome"].Value = attivita.NomeTask.Split('\\').Last();
+                        command.Parameters["@Descrizione"].Value = attivita.NomeTask.Split('\\').Last();
+                        command.Parameters["@NomeServer"].Value = NomeServer;
                         command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
                         command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
