@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Hosting.WindowsServices;
+using Serilog;
 
 namespace ServizioSchedulazione
 {
@@ -14,6 +14,13 @@ namespace ServizioSchedulazione
                 ContentRootPath = AppContext.BaseDirectory
             });
 
+            Log.Logger = new LoggerConfiguration()
+                .ReadFrom.Configuration(builder.Configuration)
+                .Enrich.FromLogContext()
+                .CreateLogger();
+
+            builder.Services.AddSerilog();
+
             builder.Services.AddWindowsService(options =>
             {
                 options.ServiceName = "ServizioSchedulazione";
@@ -28,8 +35,20 @@ namespace ServizioSchedulazione
 
             builder.Services.AddHostedService<Worker>();
 
-            var host = builder.Build();
-            host.Run();
+            try
+            {
+                var host = builder.Build();
+                host.Run();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Il servizio si è interrotto in modo inaspettato.");
+            }
+            finally
+            {
+                // Assicura la scrittura di tutti i log rimanenti prima della chiusura
+                Log.CloseAndFlush();
+            }
         }
     }
 }

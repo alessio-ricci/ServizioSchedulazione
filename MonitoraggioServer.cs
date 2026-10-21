@@ -42,9 +42,9 @@ namespace ServizioSchedulazione
             EventRecord evento = null;
             List<Attivita> listaAttivita = new List<Attivita>();
 
-            _logger.LogInformation($"\n\nInizio lettura eventi da log: {_nomeLog} con filtroPath: {_filtroPath} e NomeServer: {_server.Nome}. Data: {DateTime.Now}\n\n");
+            _logger.LogDebug($"\n\nInizio lettura eventi da log: {_nomeLog} con filtroPath: {_filtroPath} e NomeServer: {_server.Nome}. Data: {DateTime.Now}\n\n");
 
-            _logger.LogInformation(_attivitaInMemoria.Count > 0 ? $"Attività in memoria: {_attivitaInMemoria.Count > 0}" : "Nessuna attività in memoria.");
+            _logger.LogDebug(_attivitaInMemoria.Count > 0 ? $"Attività in memoria: {_attivitaInMemoria.Count > 0}" : "Nessuna attività in memoria.");
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -391,7 +391,7 @@ namespace ServizioSchedulazione
                     //Devo scrivere un log dettagliato per ogni attività in memoria, così da capire se il processo funziona correttamente.
                     foreach (var attivita in _attivitaInMemoria.Values)
                     {
-                        _logger.LogInformation($"Attività in memoria: Server: {attivita.Server}, IdTask: {attivita.IdTask}, NomeTask: {attivita.NomeTask}, NomeAction: {attivita.NomeAction}, Action: {attivita.Action}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
+                        _logger.LogInformation($"Attività in memoria: \nServer: {attivita.Server}, \nIdTask: {attivita.IdTask}, \nNomeTask: {attivita.NomeTask}, \nNomeAction: {attivita.NomeAction}, \nAction: {attivita.Action}, \nDataInizio: {attivita.DataInizio}, \nDataFine: {attivita.DataFine}, \nCodiceRitorno: {attivita.CodiceRitorno}, \nAggiornataSuDB: {attivita.AggiornataSuDB}");
                     }
                 }
                 catch (Exception ex)
@@ -419,8 +419,8 @@ namespace ServizioSchedulazione
                 }
 
                 //poi capiamo il delay
-                _logger.LogInformation($"\n\nMi fermo per 5 secondi prima di riprendere la lettura degli eventi.\n\n");
-                _logger.LogInformation($"\n\nRiparto alle ore: {DateTime.Now.AddSeconds(5)}\n\n");
+                _logger.LogDebug($"\nMi fermo per 5 secondi prima di riprendere la lettura degli eventi.\n\n");
+                _logger.LogDebug($"\nRiparto alle ore: {DateTime.Now.AddSeconds(5)}\n\n");
                 await Task.Delay(5000, stoppingToken);
             }
 
