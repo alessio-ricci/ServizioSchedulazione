@@ -183,7 +183,7 @@ Da powershell lanciare:
 	dotnet publish -c Release -o C:\Servizi\ServizioSchedulazione 
 
 	#Crea il servizio su windows
-	sc.exe create "ServizioSchedulazione" binPath= "C:\Services\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto
+	sc.exe create "ServizioSchedulazione" binPath= "C:\Servizi\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto obj= "safohp\a.ricci-ext" password= "Aleric.2026!"
 
 	#Avvia il servizio
 	sc.exe start "ServizioSchedulazione"
@@ -198,7 +198,7 @@ Se vuoi verificare che il servizio stia girando correttamente e leggendo il file
 
 
 ```
-sc.exe create "ServizioSchedulazione" binPath= "C:\Servizi\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto
+sc.exe create "ServizioSchedulazione" binPath= "C:\Servizi\ServizioSchedulazione\ServizioSchedulazione.exe" start= auto obj= "safohp\a.ricci-ext" password= "Aleric.2026!"
 sc failure "ServizioSchedulazione" reset= 86400 actions= restart/60000/restart/60000/run/60000
 	-reset= 86400: Dopo 24 ore (86400 secondi) senza crash, il contatore dei tentativi si azzera.
 	-actions= restart/60000/...: Indica la sequenza delle azioni. In questo caso:

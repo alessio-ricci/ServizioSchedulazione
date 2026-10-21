@@ -391,7 +391,7 @@ namespace ServizioSchedulazione
                     //Devo scrivere un log dettagliato per ogni attività in memoria, così da capire se il processo funziona correttamente.
                     foreach (var attivita in _attivitaInMemoria.Values)
                     {
-                        _logger.LogInformation($"Attività in memoria: \nServer: {attivita.Server}, \nIdTask: {attivita.IdTask}, \nNomeTask: {attivita.NomeTask}, \nNomeAction: {attivita.NomeAction}, \nAction: {attivita.Action}, \nDataInizio: {attivita.DataInizio}, \nDataFine: {attivita.DataFine}, \nCodiceRitorno: {attivita.CodiceRitorno}, \nAggiornataSuDB: {attivita.AggiornataSuDB}");
+                        _logger.LogDebug($"Attività in memoria: Server: {attivita.Server} - {_server.Host} - {_server.NomeServer}, IdTask: {attivita.IdTask}, NomeTask: {attivita.NomeTask}, NomeAction: {attivita.NomeAction}, Action: {attivita.Action}, DataInizio: {attivita.DataInizio}, DataFine: {attivita.DataFine}, CodiceRitorno: {attivita.CodiceRitorno}, AggiornataSuDB: {attivita.AggiornataSuDB}");
                     }
                 }
                 catch (Exception ex)
@@ -411,12 +411,19 @@ namespace ServizioSchedulazione
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
                         await AggiornaDB(daAggiornare, _server.Host + " - " + _server.NomeServer);
+
+                        foreach (var attivita in daAggiornare)
+                        {
+                            _logger.LogInformation($"Aggiornamento attivita {attivita.NomeTask} DataInizio: {attivita.DataInizio} DataFine: {attivita.DataFine} CodiceRitorno: {attivita.CodiceRitorno}");
+                        }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Errore durante l'aggiornamento su DB.");
                     }
                 }
+
+
 
                 //poi capiamo il delay
                 _logger.LogDebug($"\nMi fermo per 5 secondi prima di riprendere la lettura degli eventi.\n\n");
