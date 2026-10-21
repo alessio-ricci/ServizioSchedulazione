@@ -512,7 +512,6 @@ namespace ServizioSchedulazione
                         {
                             await command.ExecuteNonQueryAsync();
                             attivita.AggiornataSuDB = true;
-                            _logger.LogInformation($"Aggiornamento DB riuscito per NomeTask: {attivita.NomeTask}");
                         }
                         catch (Exception ex)
                         {
