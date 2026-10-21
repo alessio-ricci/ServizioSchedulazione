@@ -411,11 +411,6 @@ namespace ServizioSchedulazione
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
                         await AggiornaDB(daAggiornare, _server.Host + " - " + _server.NomeServer);
-
-                        foreach (var attivita in daAggiornare)
-                        {
-                            _logger.LogInformation($"Aggiornamento attivita {attivita.NomeTask} DataInizio: {attivita.DataInizio} DataFine: {attivita.DataFine} CodiceRitorno: {attivita.CodiceRitorno}");
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -512,6 +507,7 @@ namespace ServizioSchedulazione
                         {
                             await command.ExecuteNonQueryAsync();
                             attivita.AggiornataSuDB = true;
+                            _logger.LogInformation($"Nome Server: {NomeServer} -> Aggiornamento attivita {attivita.NomeTask} DataInizio: {attivita.DataInizio} DataFine: {attivita.DataFine} CodiceRitorno: {attivita.CodiceRitorno}");
                         }
                         catch (Exception ex)
                         {
