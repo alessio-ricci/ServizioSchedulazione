@@ -208,14 +208,14 @@ sc failure "ServizioSchedulazione" reset= 86400 actions= restart/60000/restart/6
 
 
 #configurazione più semplice
-sc failure "ServizioSchedulazione" reset= 0 actions= restart/30000
+sc.exe failure "ServizioSchedulazione" reset= 0 actions= restart/30000
 
 #avviare il servizio
-sc start "ServizioSchedulazione"
+sc.exe start "ServizioSchedulazione"
 
 #Stoppare il servizio
-sc stop "ServizioSchedulazione"
+sc.exe stop "ServizioSchedulazione"
 
 #Eliminare il servizio
-sc delete "ServizioSchedulazione"
+sc.exe delete "ServizioSchedulazione"
 ```
