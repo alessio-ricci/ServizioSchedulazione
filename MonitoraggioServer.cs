@@ -327,7 +327,7 @@ namespace ServizioSchedulazione
                                     //ora aggiungo tranquillamente l'elemento.
                                     _attivitaInMemoria[idTaskTrovato] = new AttivitaInMemoria()
                                     {
-                                        Server = _server.Nome,
+                                        Server = _server.Host + " - " + _server.NomeServer,
                                         DataInizio = actionIniziata.DataCreazione,
                                         AggiornataSuDB = false,
                                         CodiceRitorno = null,
@@ -410,7 +410,7 @@ namespace ServizioSchedulazione
                     try
                     {
                         var daAggiornare = _attivitaInMemoria.Values.Where(a => !a.AggiornataSuDB).ToList();
-                        await AggiornaDB(daAggiornare, _server.Host + " - " + _server.NomeServer);
+                        await AggiornaDB(daAggiornare);
                     }
                     catch (Exception ex)
                     {
@@ -480,7 +480,7 @@ namespace ServizioSchedulazione
 
         }
 
-        private async Task AggiornaDB(List<AttivitaInMemoria> daAggiornare, string NomeServer)
+        private async Task AggiornaDB(List<AttivitaInMemoria> daAggiornare)
         {
             string query = @"UPDATE Schedulazioni SET EsecuzioneInizio = @Start, EsecuzioneFine = @Stop, SuccessoUltimaEsecuzione = @Esito, Nome = @NomeServer WHERE Descrizione = @Descrizione AND Disabilitata = 0";
 
@@ -499,7 +499,7 @@ namespace ServizioSchedulazione
                     foreach (var attivita in daAggiornare)
                     {
                         command.Parameters["@Descrizione"].Value = attivita.NomeTask.Split('\\').Last();
-                        command.Parameters["@NomeServer"].Value = NomeServer;
+                        command.Parameters["@NomeServer"].Value = attivita.Server;
                         command.Parameters["@Start"].Value = attivita.DataInizio ?? (object)DBNull.Value;
                         command.Parameters["@Stop"].Value = attivita.DataFine ?? (object)DBNull.Value;
                         command.Parameters["@Esito"].Value = attivita.CodiceRitorno == null ? DBNull.Value : attivita.CodiceRitorno == "1" ? true : false; 
@@ -507,7 +507,7 @@ namespace ServizioSchedulazione
                         {
                             await command.ExecuteNonQueryAsync();
                             attivita.AggiornataSuDB = true;
-                            _logger.LogInformation($"Nome Server: {NomeServer} -> Aggiornamento attivita {attivita.NomeTask} DataInizio: {attivita.DataInizio} DataFine: {attivita.DataFine} CodiceRitorno: {attivita.CodiceRitorno}");
+                            _logger.LogInformation($"Nome Server: {attivita.Server} -> Aggiornamento attivita {attivita.NomeTask} DataInizio: {attivita.DataInizio} DataFine: {attivita.DataFine} CodiceRitorno: {attivita.CodiceRitorno}");
                         }
                         catch (Exception ex)
                         {
