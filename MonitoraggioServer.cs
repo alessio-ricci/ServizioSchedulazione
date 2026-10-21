@@ -24,7 +24,7 @@ namespace ServizioSchedulazione
         private EventLogSession? _sessione;
         private readonly Dictionary<string, AttivitaInMemoria> _attivitaInMemoria = new();
         private readonly Dictionary<string, DateTime> _taskIgnorati = new();
-        private static readonly TimeSpan _durataIgnorati = TimeSpan.FromHours(48);
+        private static readonly TimeSpan _durataIgnorati = TimeSpan.FromHours(24);
 
         public MonitoraggioServer(SettaggioServer server, string nomeLog, ILogger logger, string connectionString)
         {
